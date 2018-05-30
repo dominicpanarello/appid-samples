@@ -3,22 +3,31 @@ import requests
 import json
 import argparse
 
-
-
-def get_from_api(path, token):
+def get_from_api(path, token, isConfig=True):
     headers = {'Authorization': token, 'Accept': 'application/json'}
-    url = src_management_url + src_tenantId + "/config/" +path
+    configPath = "/config" if isConfig else ""
+    url = src_management_url + src_tenantId + configPath + "/" +path
     return requests.get(
         url,
-        headers=headers);
+        headers=headers); 
 
-def put_to_api(path, content, token):
+def put_to_api(path, content, token, isConfig=True):
     headers = {'Authorization': token, 'Accept': 'application/json', 'Content-Type': 'application/json'}
-    url = tgt_management_url + trgt_tenantId + "/config/" + path
+    configPath = "/config" if isConfig else ""
+    url = tgt_management_url + trgt_tenantId + configPath + "/" + path
     return requests.put(
         url,
         data=content,
         headers=headers);
+    
+def post_to_api(path, content, token, isConfig=True):
+    headers = {'Authorization': token, 'Accept': 'application/json', 'Content-Type': 'application/json'}
+    configPath = "/config" if isConfig else ""
+    url = tgt_management_url + trgt_tenantId + configPath + "/" + path
+    return requests.post(
+        url,
+        data=content,
+        headers=headers);    
 
 def get_iam_token():
     headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
@@ -27,12 +36,12 @@ def get_iam_token():
     r = requests.post(iam_url + ".bluemix.net/oidc/token", data=data, headers=headers);
     return 'Bearer ' + json.loads(r.text)['access_token'];
 
-def copy(path, token):
-    r = get_from_api(path, token)
+def copy(path, token, isConfig=True):
+    r = get_from_api(path, token, isConfig)
     debug(r.status_code)
     debug(r.content)
     if 200 <= r.status_code < 300:
-        print("success! got " + path + " from source")
+        print("Success! got " + path + " from source")
     else:
         print("Failed to get " + path + " from source")
     jcontent = r.content
@@ -41,7 +50,7 @@ def copy(path, token):
     debug(r.status_code)
     debug(r.text)
     if 200 <= r.status_code < 300:
-        print("success! put to " + path + " at target")
+        print("Success! put to " + path + " at target")
     else:
         print("Failed to put to " + path + " at target")
 
@@ -54,10 +63,54 @@ def copyTemplates(token):
 def copyActions(token):
     copy("cloud_directory/action_url/" + "on_user_verified", token)
     copy("cloud_directory/action_url/" + "on_reset_password", token)
+    
+def copyCloudUsers(token):
+    path = "cloud_directory/Users"
+    users = get_from_api(path, token, False)
+    data = json.loads(users.content)
+    resources = data['Resources']
+    for user in resources:
+      debug("Processing user " + user['displayName'])
+      userProfileValue = get_user_profile_value(user['id'], token)
+      if is_user_attribute_filter() and not userProfileValue == attrValue:
+	print("Skipping user with incorrect " + attrName + " : is " + str(userProfileValue) + " expected " + attrValue)
+	continue
+      
+      user['password'] = 'mypassword'
+      r = post_to_api(path, json.dumps(user), token, False)
+      debug(r.status_code)
+      debug(r.text)
+      if 200 <= r.status_code < 300:
+	print("Success! put to " + path + " at target")
+      else:
+	print("Failed to put to " + path + " at target: " + str(r.status_code))
+	
+def get_user_profile_value(userId, token):
+    if not is_user_attribute_filter():
+      return
+    
+    user = get_from_api("users?id="+userId, token, False)
+    userData = json.loads(user.content)['users']
+    if not userData:
+      return
+    
+    userProfileId = userData[0]['id']
+    if (userProfileId is not None):
+      profile = get_from_api("users/" + userProfileId + "/profile", token, False)
+      profileData = json.loads(profile.content)['attributes']
+      if profileData:
+	return profileData.get(attrName, None)
+      
+    return
 
+def is_user_attribute_filter():
+  return (attrName is not None) and (attrValue is not None)
+	
 def debug(str):
     if verbose:
         print(str)
+        
+
 
 def main():
     parser = argparse.ArgumentParser(description='Copy configuration from one App ID instance to another')
@@ -78,6 +131,11 @@ def main():
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Run with verbose mode. REST messages content will be displayed')
+    
+    parser.add_argument('-a', '--attr_name', type=str,
+                        help='User profile attribute name for user selection')
+    parser.add_argument('-l', '--attr_value', type=str,
+                        help='User profile attribute value for user selection')
 
     args = parser.parse_args()
 
@@ -89,6 +147,8 @@ def main():
     global src_management_url
     global tgt_management_url
     global verbose
+    global attrName
+    global attrValue
 
     src_tenantId = args.source
     trgt_tenantId = args.target
@@ -96,6 +156,8 @@ def main():
     region = args.region
     tgt_region = args.target_region
     verbose = args.verbose
+    attrName = args.attr_name
+    attrValue = args.attr_value
 
     if region == "us-south":
         region = 'ng'
@@ -111,6 +173,8 @@ def main():
     tgt_management_url = "https://appid-management." + tgt_region + ".bluemix.net/management/v4/"
     debug("source:" + src_management_url)
     debug("target:" + tgt_management_url)
+    debug("attrName:" + str(attrName))
+    debug("attrValue:" + str(attrValue))
     
     token = get_iam_token()
 
@@ -128,7 +192,7 @@ def main():
 
     copyTemplates(token)
     #copyActions(token)
-
+    copyCloudUsers(token)
 
 
 if __name__ == "__main__":
