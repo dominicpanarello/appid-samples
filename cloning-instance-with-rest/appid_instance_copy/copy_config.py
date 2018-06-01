@@ -140,7 +140,7 @@ def is_copy_user_profile():
   return (clientId is not None) and (clientSecret is not None)
 
 def copy_user_profile(userProfile, loginId, password, token):
-  if not userProfile['attributes']:
+  if not userProfile or not userProfile['attributes']:
     return
   
   perform_user_login(loginId, password)
