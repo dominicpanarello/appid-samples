@@ -90,12 +90,20 @@ Working with the CLI, complete the following steps.
 	</tr>
 	<tr>
 		<td><i>attr_name</i></td>
-		<td><i>(Optional)</i> When migrating users, only migrate users that have a matching attribute name and value pair.</td>
+		<td><i>(Optional)</i>When migrating users, only migrate users that have a matching attribute name and value pair.</td>
 	</tr>
 	<tr>
 		<td><i>attr_value</i></td>
-		<td><i>(Optional)</i> When migrating users, only migrate users that have a matching attribute name and value pair.</td>
+		<td><i>(Optional)</i>When migrating users, only migrate users that have a matching attribute name and value pair.</td>
 	</tr>
+	<tr>
+		<td><i>clientid</i></td>
+		<td><i>(Optional)</i>When migrating user profiles, the client ID of the instance of App ID that you want to copy the user profiles to.</td>
+	</tr>
+	<tr>
+		<td><i>secret</i></td>
+		<td><i>(Optional)</i> When migrating user profiles, the client secret of the instance of App ID that you want to copy the user profiles to.</td>
+	</tr>	
 </table>
 
 		>Tip: To see the REST messages, append the `-v` flag to the command.
@@ -114,6 +122,13 @@ Example:
 ```
 appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb -attr_name user-status -attr_value active
 ```
+
+If you wish to also migrate user profiles, you must also specify a valid client ID and secret of a credential on the target App ID instance.
+Example:
+```
+appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb -clientid ccccccccc -secret ssssssssssssss
+```
+
 
 And that's it! 
 

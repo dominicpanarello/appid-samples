@@ -2,11 +2,17 @@
 import requests
 import json
 import argparse
+import base64
+import urllib
 
-def get_from_api(path, token, isConfig=True):
+def get_from_api(path, token, isConfig=True, tenantId=None):
+    if tenantId is None:
+      tenantId = src_tenantId
+      
     headers = {'Authorization': token, 'Accept': 'application/json'}
     configPath = "/config" if isConfig else ""
-    url = src_management_url + src_tenantId + configPath + "/" +path
+    url = src_management_url + tenantId + configPath + "/" +path
+
     return requests.get(
         url,
         headers=headers); 
@@ -35,6 +41,20 @@ def get_iam_token():
 
     r = requests.post(iam_url + ".bluemix.net/oidc/token", data=data, headers=headers);
     return 'Bearer ' + json.loads(r.text)['access_token'];
+  
+def get_user_token(loginId, password):
+  
+    basicAuthHeader = 'Basic ' + str(base64.b64encode(bytes(clientId + ":" + clientSecret)))
+    headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'Authorization': basicAuthHeader}
+    data = 'grant_type=password&username=' + urllib.quote(loginId) + '&password=' + password;
+    
+    r = requests.post(tgt_oauth_url, data=data, headers=headers);
+    accessToken = json.loads(r.text).get('access_token', None)
+    if accessToken is None:
+      print("Couldn't get user access token - " + str(r.content))
+      return
+      
+    return 'Bearer ' + accessToken
 
 def copy(path, token, isConfig=True):
     r = get_from_api(path, token, isConfig)
@@ -71,10 +91,16 @@ def copyCloudUsers(token):
     resources = data['Resources']
     for user in resources:
       debug("Processing user " + user['displayName'])
-      userProfileValue = get_user_profile_value(user['id'], token)
-      if is_user_attribute_filter() and not userProfileValue == attrValue:
-	print("Skipping user with incorrect " + attrName + " : is " + str(userProfileValue) + " expected " + attrValue)
-	continue
+      loginId = user['emails'][0]['value']
+      userProfile = get_user_profile(loginId, token)
+      if is_user_attribute_filter():
+	  userProfileValue = None
+	  if userProfile and userProfile['attributes']:
+	    userProfileValue = userProfile['attributes'].get(attrName, None)
+	    
+	  if not userProfileValue or not userProfileValue == attrValue:
+	    print("Skipping user with incorrect " + attrName + " : is " + str(userProfileValue) + " expected " + attrValue)
+	    continue
       
       user['password'] = 'mypassword'
       r = post_to_api(path, json.dumps(user), token, False)
@@ -85,26 +111,59 @@ def copyCloudUsers(token):
       else:
 	print("Failed to put to " + path + " at target: " + str(r.status_code))
 	
-def get_user_profile_value(userId, token):
-    if not is_user_attribute_filter():
-      return
+      if is_copy_user_profile():
+	copy_user_profile(userProfile, loginId, user['password'], token)
+
+def get_user_profile_id(loginId, token, tenantId=None):
     
-    user = get_from_api("users?id="+userId, token, False)
+    user = get_from_api("users?email="+urllib.quote(loginId), token, False, tenantId)
     userData = json.loads(user.content)['users']
+
     if not userData:
       return
     
-    userProfileId = userData[0]['id']
+    return userData[0]['id']
+    
+def get_user_profile(loginId, token):
+    userProfileId = get_user_profile_id(loginId, token)
+    
     if (userProfileId is not None):
       profile = get_from_api("users/" + userProfileId + "/profile", token, False)
-      profileData = json.loads(profile.content)['attributes']
-      if profileData:
-	return profileData.get(attrName, None)
-      
+      return json.loads(profile.content)
+
     return
 
 def is_user_attribute_filter():
   return (attrName is not None) and (attrValue is not None)
+
+def is_copy_user_profile():
+  return (clientId is not None) and (clientSecret is not None)
+
+def copy_user_profile(userProfile, loginId, password, token):
+  if not userProfile['attributes']:
+    return
+  
+  perform_user_login(loginId, password)
+  
+  #must retrieve the target user profile id
+  targetProfileId = get_user_profile_id(loginId, token, trgt_tenantId)
+  if targetProfileId is None:
+     print("Couldn't find target profile for user " + loginId)
+     return
+   
+  path = "users/" + targetProfileId + "/profile"
+  r = put_to_api(path, json.dumps(userProfile), token, False)
+  debug(r.status_code)
+  debug(r.text)
+  if 200 <= r.status_code < 300:
+    print("Success! put to " + path + " at target")
+  else:
+    print("Failed to put to " + path + " at target: " + str(r.status_code))  
+
+#User login is currently required to initialize a new user's profile.
+#This must be conducted prior to adding profile attributes.
+def perform_user_login(loginId, password):
+  userToken = get_user_token(loginId, password)  
 	
 def debug(str):
     if verbose:
@@ -136,6 +195,11 @@ def main():
                         help='User profile attribute name for user selection')
     parser.add_argument('-l', '--attr_value', type=str,
                         help='User profile attribute value for user selection')
+    
+    parser.add_argument('-c', '--clientid', type=str,
+                        help='Client ID for user profile migration')
+    parser.add_argument('-s', '--secret', type=str,
+                        help='Client secret for user profile migration')
 
     args = parser.parse_args()
 
@@ -146,9 +210,12 @@ def main():
     global iam_url
     global src_management_url
     global tgt_management_url
+    global tgt_oauth_url
     global verbose
     global attrName
     global attrValue
+    global clientId
+    global clientSecret
 
     src_tenantId = args.source
     trgt_tenantId = args.target
@@ -158,6 +225,8 @@ def main():
     verbose = args.verbose
     attrName = args.attr_name
     attrValue = args.attr_value
+    clientId = args.clientid
+    clientSecret = args.secret
 
     if region == "us-south":
         region = 'ng'
@@ -171,18 +240,21 @@ def main():
     iam_url = "https://iam." + region
     src_management_url = "https://appid-management." + region + ".bluemix.net/management/v4/"
     tgt_management_url = "https://appid-management." + tgt_region + ".bluemix.net/management/v4/"
+    tgt_oauth_url = "https://appid-oauth." + tgt_region + ".bluemix.net/oauth/v3/" + trgt_tenantId + "/token"
+
     debug("source:" + src_management_url)
     debug("target:" + tgt_management_url)
+    debug("target oauth:" + tgt_oauth_url)
     debug("attrName:" + str(attrName))
     debug("attrValue:" + str(attrValue))
     
     token = get_iam_token()
 
-    copy("idps/facebook", token)
-    copy("idps/google", token)
+    #copy("idps/facebook", token)
+    #copy("idps/google", token)
     copy("idps/cloud_directory", token)
     # copy("idps/saml", token)
-    #
+    
     copy("tokens", token)
     # copy("redirect_uris", token)
     copy("users_profile", token)
@@ -192,6 +264,7 @@ def main():
 
     copyTemplates(token)
     #copyActions(token)
+    
     copyCloudUsers(token)
 
 
