@@ -88,6 +88,14 @@ Working with the CLI, complete the following steps.
 		<td><i>target_region</i></td>
 		<td>The region that the instance of App ID that you want to copy the configuration to is located in. If not provided, it will default to the source region.</td>
 	</tr>
+	<tr>
+		<td><i>attr_name</i></td>
+		<td><i>(Optional)</i> When migrating users, only migrate users that have a matching attribute name and value pair.</td>
+	</tr>
+	<tr>
+		<td><i>attr_value</i></td>
+		<td><i>(Optional)</i> When migrating users, only migrate users that have a matching attribute name and value pair.</td>
+	</tr>
 </table>
 
 		>Tip: To see the REST messages, append the `-v` flag to the command.
@@ -98,6 +106,13 @@ So, say you have App ID instance, x, that you have configured exactly as you wan
 Example: 
 ```
 appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb
+```
+
+As another example, you can choose to migrate only specific users by providing a user profile attribute name and value. Only users with a matching attribute name and value will be migrated.
+
+Example:
+```
+appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb -attr_name user-status -attr_value active
 ```
 
 And that's it! 
