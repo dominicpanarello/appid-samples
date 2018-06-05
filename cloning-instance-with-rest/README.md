@@ -124,6 +124,7 @@ appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb -attr_name user
 ```
 
 If you wish to also migrate user profiles, you must also specify a valid client ID and secret of a credential on the target App ID instance.
+Note that users that are migrated will automatically be requested to reset their password.
 Example:
 ```
 appidc xxxxxxx yyyyyyy --apikey KkKkKkKkkKkKkKkKk --region eu-gb -clientid ccccccccc -secret ssssssssssssss

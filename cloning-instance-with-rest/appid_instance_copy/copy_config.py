@@ -4,6 +4,8 @@ import json
 import argparse
 import base64
 import urllib
+import random
+import sys
 
 def get_from_api(path, token, isConfig=True, tenantId=None):
     if tenantId is None:
@@ -26,8 +28,9 @@ def put_to_api(path, content, token, isConfig=True):
         data=content,
         headers=headers);
     
-def post_to_api(path, content, token, isConfig=True):
-    headers = {'Authorization': token, 'Accept': 'application/json', 'Content-Type': 'application/json'}
+def post_to_api(path, content, token, isConfig=True, isJson=True):
+    contentType = "application/json" if isJson else "application/x-www-form-urlencoded"
+    headers = {'Authorization': token, 'Accept': 'application/json', 'Content-Type': contentType}
     configPath = "/config" if isConfig else ""
     url = tgt_management_url + trgt_tenantId + configPath + "/" + path
     return requests.post(
@@ -102,18 +105,21 @@ def copyCloudUsers(token):
 	    print("Skipping user with incorrect " + attrName + " : is " + str(userProfileValue) + " expected " + attrValue)
 	    continue
       
-      user['password'] = 'mypassword'
+      user['password'] = random.randint(1, sys.maxsize)
       r = post_to_api(path, json.dumps(user), token, False)
       debug(r.status_code)
       debug(r.text)
       if 200 <= r.status_code < 300:
 	print("Success! put to " + path + " at target")
+	
+	if is_copy_user_profile():
+	  copy_user_profile(userProfile, loginId, user['password'], token)
+	  
+	request_password_reset(loginId, token)
+	
       else:
 	print("Failed to put to " + path + " at target: " + str(r.status_code))
 	
-      if is_copy_user_profile():
-	copy_user_profile(userProfile, loginId, user['password'], token)
-
 def get_user_profile_id(loginId, token, tenantId=None):
     
     user = get_from_api("users?email="+urllib.quote(loginId), token, False, tenantId)
@@ -164,6 +170,18 @@ def copy_user_profile(userProfile, loginId, password, token):
 #This must be conducted prior to adding profile attributes.
 def perform_user_login(loginId, password):
   userToken = get_user_token(loginId, password)  
+  
+def request_password_reset(loginId, token):
+    path = "cloud_directory/forgot_password"
+    params = "email=" + urllib.quote(loginId)
+    r = post_to_api(path, params, token, False, False)
+    debug(r.status_code)
+    debug(r.text)
+
+    if 200 <= r.status_code < 300:
+	debug("Success! post to " + path + " at target")
+    else:
+	print("Failed to post to " + path + " at target: " + str(r.status_code))
 	
 def debug(str):
     if verbose:
