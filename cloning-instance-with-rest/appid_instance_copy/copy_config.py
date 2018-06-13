@@ -105,7 +105,7 @@ def copyCloudUsers(token):
 	    print("Skipping user with incorrect " + attrName + " : is " + str(userProfileValue) + " expected " + attrValue)
 	    continue
       
-      user['password'] = random.randint(1, sys.maxsize)
+      user['password'] = str(random.randint(1, sys.maxsize))
       r = post_to_api(path, json.dumps(user), token, False)
       debug(r.status_code)
       debug(r.text)
