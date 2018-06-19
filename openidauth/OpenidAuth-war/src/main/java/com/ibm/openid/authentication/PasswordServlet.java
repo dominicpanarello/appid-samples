@@ -13,6 +13,7 @@
 package com.ibm.openid.authentication;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ibm.openid.authentication.exception.RequestException;
 import com.ibm.openid.authentication.rest.JwtToken;
 import com.ibm.openid.authentication.rest.RestUtils;
 import com.ibm.openid.authentication.rest.UriUtils;
@@ -42,6 +43,7 @@ public class PasswordServlet extends HttpServlet {
 
   private static final String PROP_APPID_API_KEY = "appid.api.key";
   private static final String PROP_ENVIRONMENT = "environment";
+  private static final String PROP_REDIRECT_URI_WHITELIST = "security.redirect.uri.whitelist";
 
   private static final String APPID_IDENTITY_GRANT_TYPE = "urn:ibm:params:oauth:grant-type:apikey";
 
@@ -139,13 +141,17 @@ public class PasswordServlet extends HttpServlet {
    * @param req
    *          request
    * @return redirect URI
+   * @throws RequestException
    */
-  private String getRedirectUri(final HttpServletRequest req) {
+  private String getRedirectUri(final HttpServletRequest req)
+      throws RequestException {
     String uri = req.getParameter("redirectUri");
 
     if (uri == null) {
       uri = req.getParameter("redirect_uri");
     }
+
+    validateRedirectUri(uri);
 
     return uri;
   }
@@ -194,6 +200,30 @@ public class PasswordServlet extends HttpServlet {
         .readValue(tokenResponse.readEntity(String.class), JwtToken.class);
     return token;
 
+  }
+
+  /**
+   * Check the given redirect uri to ensure it meets validity criteria, eg.
+   * security.
+   * 
+   * @param uri
+   *          uri
+   * @throws RequestException
+   */
+  private void validateRedirectUri(final String uri) throws RequestException {
+    if (uri == null) {
+      return;
+    }
+
+    final String allUris = getProperties()
+        .getString(PROP_REDIRECT_URI_WHITELIST);
+    for (final String validUri : allUris.split(",")) {
+      if (uri.startsWith(validUri)) {
+        return;
+      }
+    }
+
+    throw new RequestException("Invalid redirect uri");
   }
 
   /**
