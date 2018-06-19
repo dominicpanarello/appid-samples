@@ -1,0 +1,26 @@
+apply plugin: 'ear'
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+
+dependencies {
+	deploy project(path: ':OpenidAuth-war', configuration: 'archives')
+}
+
+ear {
+    baseName = 'OpenidAuth'
+    deploymentDescriptor { 
+        applicationName = "OpenidAuth"
+        initializeInOrder = true
+        description = "An application for custom integration with OAuth2 Identity Providers."
+    }
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      groupId 'com.ibm.openid'
+      artifactId 'OpenidAuth'
+      artifact ear
+    }
+  }
+}

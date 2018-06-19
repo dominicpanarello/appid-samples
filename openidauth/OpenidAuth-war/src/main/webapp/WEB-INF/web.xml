@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+    version="3.1">
+
+    <display-name>OpenidAuth</display-name>
+    <description>
+	     An application for custom integration with OAuth2 Identity Providers, such as AppID.
+    </description>
+
+    <servlet>
+        <servlet-name>Authorization</servlet-name>
+        <servlet-class>com.ibm.openid.authentication.AuthServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>Authorization</servlet-name>
+        <url-pattern>/authorization</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>Password</servlet-name>
+        <servlet-class>com.ibm.openid.authentication.PasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>Password</servlet-name>
+        <url-pattern>/password</url-pattern>
+    </servlet-mapping>
+    
+    <servlet>
+        <servlet-name>Token</servlet-name>
+        <servlet-class>com.ibm.openid.authentication.TokenServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>Token</servlet-name>
+        <url-pattern>/token</url-pattern>
+    </servlet-mapping>
+    
+    <servlet>
+        <servlet-name>BaseServlet</servlet-name>
+        <servlet-class>com.ibm.openid.authentication.BaseServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>BaseServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+</web-app>

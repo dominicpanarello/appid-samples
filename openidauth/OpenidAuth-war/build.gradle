@@ -1,0 +1,22 @@
+apply plugin: 'war'
+apply plugin: 'eclipse'
+
+war {
+    archiveName = 'OpenidAuth.war'
+}
+
+dependencies {
+	compile('javax.servlet:javax.servlet-api:3.1.0')
+	compile('javax.ws.rs:javax.ws.rs-api:2.0.1')
+	compile('net.sf.ehcache:ehcache-core:2.6.11')
+	compile('org.glassfish.hk2:hk2-api:2.5.0-b05')
+	compile('com.fasterxml.jackson.core:jackson-annotations:2.9.5')
+	compile('com.fasterxml.jackson.core:jackson-core:2.9.5')
+	compile('com.fasterxml.jackson.core:jackson-databind:2.9.5')
+	compile('com.fasterxml.jackson.jaxrs:jackson-jaxrs-base:2.9.5')
+	compile('com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:2.9.5')
+	compile('org.glassfish.jersey.core:jersey-client:2.6')
+	compile('org.glassfish.jersey.core:jersey-common:2.6')
+	compile('org.slf4j:slf4j-api:1.7.25')
+	compile('org.slf4j:slf4j-jdk14:1.7.25')
+}

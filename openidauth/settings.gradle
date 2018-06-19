@@ -1,0 +1,2 @@
+include ':OpenidAuth-ear'
+include ':OpenidAuth-war'
