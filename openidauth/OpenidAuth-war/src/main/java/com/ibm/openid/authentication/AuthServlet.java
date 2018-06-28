@@ -118,13 +118,15 @@ public class AuthServlet extends HttpServlet {
     final String clientId = req.getParameter("clientId");
     final String tenantId = req.getAttribute("tenantId").toString();
     final String state = req.getParameter("state");
+    final String stateCookie = req.getParameter("stateCookie");
     final String redirectUri = getRedirectUri(req);
-    final String protectedUrl = getWasReqUrl(req);
+    final String protectedUrl = getWasReqUrl(req, stateCookie);
     String authResult = null;
     String authMsg = null;
 
     try {
-      if (isLibertyOidcClientUri(redirectUri) && !isStateCookiePresent(req)) {
+      if (isLibertyOidcClientUri(redirectUri)
+          && !isStateCookiePresent(req, stateCookie)) {
         // the oidcclient will reject the request - redirect the user back to
         // login with a fresh state instead
         log.debug("AuthServlet state cookie not present, redirecting back to "
@@ -181,15 +183,55 @@ public class AuthServlet extends HttpServlet {
    * 
    * @param req
    *          request
+   * @param cookieName
+   *          cookie name
    * @return true if the cookie is present
    */
-  private boolean isStateCookiePresent(final HttpServletRequest req) {
+  private boolean isStateCookiePresent(final HttpServletRequest req,
+      final String cookieName) {
+    return getStateCookie(req, cookieName) != null;
+  }
+
+  /**
+   * Check for the presence of the WAS OIDC state cookie, by prefix.
+   * 
+   * @param req
+   *          request
+   * @return cookie if the cookie is present
+   */
+  private Cookie getStateCookie(final HttpServletRequest req) {
+    if (req.getCookies() == null) {
+      return null;
+    }
+
     for (final Cookie cookie : req.getCookies()) {
       if (cookie.getName().startsWith(WAS_STATE_COOKIE_PREFIX)) {
-        return true;
+        return cookie;
       }
     }
-    return false;
+    return null;
+  }
+
+  /**
+   * Check for the presence of the WAS OIDC state cookie, by exact name.
+   * 
+   * @param req
+   *          request
+   * @param cookieName
+   *          cookie name
+   * @return cookie if the cookie is present
+   */
+  private Cookie getStateCookie(final HttpServletRequest req,
+      final String cookieName) {
+    if (cookieName == null || req.getCookies() == null) {
+      return null;
+    }
+    for (final Cookie cookie : req.getCookies()) {
+      if (cookie.getName().equals(cookieName)) {
+        return cookie;
+      }
+    }
+    return null;
   }
 
   /**
@@ -197,13 +239,23 @@ public class AuthServlet extends HttpServlet {
    * 
    * @param req
    *          request
+   * @param stateCookie
+   *          state cookie name
    * @return url
    * @throws RequestException
    */
-  private String getWasReqUrl(final HttpServletRequest req)
-      throws RequestException {
+  private String getWasReqUrl(final HttpServletRequest req,
+      final String stateCookie) throws RequestException {
+    if (stateCookie == null || req.getCookies() == null) {
+      // we can't determine the was req url
+      return null;
+    }
+    final String nonce = stateCookie.length() >= WAS_STATE_COOKIE_PREFIX
+        .length() ? stateCookie.substring(WAS_STATE_COOKIE_PREFIX.length())
+            : null;
+
     for (final Cookie cookie : req.getCookies()) {
-      if (cookie.getName().startsWith(WAS_REQ_URL_COOKIE_PREFIX)) {
+      if (cookie.getName().equals(WAS_REQ_URL_COOKIE_PREFIX + nonce)) {
         final String reqUrl = cookie.getValue();
         validateWasReqUrl(reqUrl);
         return reqUrl;
@@ -244,6 +296,10 @@ public class AuthServlet extends HttpServlet {
     req.setAttribute("state", state);
     req.setAttribute("environment",
         getProperties().getString(PROP_ENVIRONMENT));
+    final Cookie stateCookie = getStateCookie(req);
+    if (stateCookie != null) {
+      req.setAttribute("stateCookie", stateCookie.getName());
+    }
     req.getServletContext().getRequestDispatcher(LOGIN_JSP).forward(req, resp);
   }
 
@@ -583,7 +639,7 @@ public class AuthServlet extends HttpServlet {
       }
     }
 
-    throw new RequestException("Invalid redirect uri");
+    throw new RequestException("Invalid redirect uri: " + uri);
   }
 
   /**
@@ -607,7 +663,7 @@ public class AuthServlet extends HttpServlet {
       }
     }
 
-    throw new RequestException("Invalid was req url");
+    throw new RequestException("Invalid was req url: " + uri);
   }
 
   /**

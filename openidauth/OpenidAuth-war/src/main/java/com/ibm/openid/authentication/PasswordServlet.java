@@ -22,6 +22,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ResourceBundle;
 import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -46,6 +47,8 @@ public class PasswordServlet extends HttpServlet {
   private static final String PROP_REDIRECT_URI_WHITELIST = "security.redirect.uri.whitelist";
 
   private static final String APPID_IDENTITY_GRANT_TYPE = "urn:ibm:params:oauth:grant-type:apikey";
+
+  private static final String WAS_STATE_COOKIE_PREFIX = "WASOidcState";
 
   protected static final ObjectMapper mapper = new ObjectMapper();
 
@@ -121,7 +124,31 @@ public class PasswordServlet extends HttpServlet {
     req.setAttribute("state", state);
     req.setAttribute("environment",
         getProperties().getString(PROP_ENVIRONMENT));
+    final Cookie stateCookie = getStateCookie(req);
+    if (stateCookie != null) {
+      req.setAttribute("stateCookie", stateCookie.getName());
+    }
     req.getServletContext().getRequestDispatcher(LOGIN_JSP).forward(req, resp);
+  }
+
+  /**
+   * Check for the presence of the WAS OIDC state cookie, by prefix.
+   * 
+   * @param req
+   *          request
+   * @return cookie if the cookie is present
+   */
+  private Cookie getStateCookie(final HttpServletRequest req) {
+    if (req.getCookies() == null) {
+      return null;
+    }
+
+    for (final Cookie cookie : req.getCookies()) {
+      if (cookie.getName().startsWith(WAS_STATE_COOKIE_PREFIX)) {
+        return cookie;
+      }
+    }
+    return null;
   }
 
   /**
@@ -223,7 +250,7 @@ public class PasswordServlet extends HttpServlet {
       }
     }
 
-    throw new RequestException("Invalid redirect uri");
+    throw new RequestException("Invalid redirect uri: " + uri);
   }
 
   /**
